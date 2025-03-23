@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Colored Bubbles</title>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Rectangle with 5% margin from edges
+        const marginPercent = 5;
+        const marginX = canvas.width * (marginPercent / 100);
+        const marginY = canvas.height * (marginPercent / 100);
+        const rect = {
+            x: marginX,
+            y: marginY,
+            width: canvas.width - 2 * marginX,
+            height: canvas.height - 2 * marginY
+        };
+
+        const BUBBLE_SPEED = 0.5; // Constant for bubble speed
+        let bubbles = [];
+
+        // Load bubbles from bubbles.txt using fetch
+        fetch('bubbles.txt')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('File bubbles.txt not found');
+                }
+                return response.text();
+            })
+            .then(data => {
+                const lines = data.split('\n').filter(line => line.trim() !== '');
+                bubbles = lines.map(line => {
+                    const [name, value] = line.split(' '); // Split by space instead of tab
+                    const size = parseInt(value);
+                    return {
+                        x: rect.x + Math.random() * rect.width,
+                        y: rect.y + Math.random() * rect.height,
+                        size: size,
+                        dx: (Math.random() - 0.5) * BUBBLE_SPEED,
+                        dy: (Math.random() - 0.5) * BUBBLE_SPEED,
+                        color: `rgba(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255},0.7)`,
+                        name: name,
+                        value: size // Value to display below the name
+                    };
+                });
+                animate(); // Start animation after loading data
+            })
+            .catch(error => {
+                console.error(error.message);
+                bubbles = []; // If file fails to load, initialize empty array
+                animate();
+            });
+
+        // Detect collision between bubbles
+        function checkBubbleCollision(bubble1, bubble2) {
+            const dx = bubble2.x - bubble1.x;
+            const dy = bubble2.y - bubble1.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return distance < (bubble1.size + bubble2.size);
+        }
+
+        // Handle bubble collision by bouncing
+        function handleBubbleCollision(bubble1, bubble2) {
+            const dx = bubble2.x - bubble1.x;
+            const dy = bubble2.y - bubble1.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance === 0) return;
+
+            const nx = dx / distance;
+            const ny = dy / distance;
+
+            const dvx = bubble2.dx - bubble1.dx;
+            const dvy = bubble2.dy - bubble1.dy;
+            const dot = dvx * nx + dvy * ny;
+
+            bubble1.dx += dot * nx;
+            bubble1.dy += dot * ny;
+            bubble2.dx -= dot * nx;
+            bubble2.dy -= dot * ny;
+
+            const overlap = (bubble1.size + bubble2.size - distance) / 2;
+            bubble1.x -= overlap * nx;
+            bubble1.y -= overlap * ny;
+            bubble2.x += overlap * nx;
+            bubble2.y += overlap * ny;
+        }
+
+        // Animation loop
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw rectangle
+            ctx.strokeStyle = 'black';
+            ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+
+            // Movement and collisions
+            for (let i = 0; i < bubbles.length; i++) {
+                const bubble = bubbles[i];
+
+                // Move bubble
+                bubble.x += bubble.dx;
+                bubble.y += bubble.dy;
+
+                // Bounce off rectangle walls
+                if (bubble.x + bubble.size > rect.x + rect.width || bubble.x - bubble.size < rect.x) {
+                    bubble.dx *= -1;
+                    bubble.x = Math.max(rect.x + bubble.size, Math.min(rect.x + rect.width - bubble.size, bubble.x));
+                }
+                if (bubble.y + bubble.size > rect.y + rect.height || bubble.y - bubble.size < rect.y) {
+                    bubble.dy *= -1;
+                    bubble.y = Math.max(rect.y + bubble.size, Math.min(rect.y + rect.height - bubble.size, bubble.y));
+                }
+
+                // Check collisions with other bubbles
+                for (let j = i + 1; j < bubbles.length; j++) {
+                    const otherBubble = bubbles[j];
+                    if (checkBubbleCollision(bubble, otherBubble)) {
+                        handleBubbleCollision(bubble, otherBubble);
+                    }
+                }
+
+                // Draw bubble
+                ctx.beginPath();
+                ctx.arc(bubble.x, bubble.y, bubble.size, 0, Math.PI * 2);
+                ctx.fillStyle = bubble.color;
+                ctx.fill();
+
+                // Draw name and value
+                ctx.fillStyle = 'black';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(bubble.name, bubble.x, bubble.y - 5); // Name above value
+                ctx.fillText(bubble.value, bubble.x, bubble.y + 15); // Value below name
+            }
+
+            requestAnimationFrame(animate);
+        }
+    </script>
+</body>
+</html>
